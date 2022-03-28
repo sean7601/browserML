@@ -29,7 +29,12 @@
 
 
     <body class="m-3">
-        <input type="file" id="file" name="file" accept=".csv" onchange="ingest.csv('file')"/>
+        <div id="fileArea"></div>
+            <div class="form-group">
+                <label for="file">Choose a CSV file</label>
+                <input type="file" id="file" class="form-control" name="file" accept=".csv" onchange="ingest.csv('file')"/>
+            </div>
+        </div>
         <div id="dataArea"></div>
         <div id="modelArea"></div>
         <div id="graphArea1"></div>
