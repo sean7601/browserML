@@ -10,6 +10,5 @@ or use it to make new prediction right in the browser.
 
 TODO:
 
-categorical string data
 upload models
 upload dataset to compare against model
