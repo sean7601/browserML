@@ -44,7 +44,7 @@ graphs.drawHistogram = function(data,title,xAxisTitle,yAxisTitle,container){
 graphs.drawScatterplot = function(data,title,xAxisTitle,yAxisTitle,container){
     var maxX = -9e30;
     for(var i=0;i<data.length;i++){
-        maxX = Math.max(maxX,data[i][0]);
+        maxX = Math.max(maxX,data[i][0],data[i][1]);
     }
     Highcharts.chart(container, {
         chart: {

@@ -61,6 +61,14 @@ simpleNN.enter = function(){
                 </div>
             </div>
         </div>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label>Training Set Size (%)</label>
+                    <input class="form-control" id="trainingSetSize" value=90 type=number></input>
+                </div>
+            </div>
+        </div>
 
         <button class="btn btn-primary mt-3 mb-3" onclick="simpleNN.run()">Train</button>
         
@@ -78,61 +86,40 @@ simpleNN.getConfig = function(){
         decayRate: parseFloat($("#decayRate").val()),
         iterations: parseInt($("#iterations").val())
     }
-    openModal(`<div class="loader">Loading...</div>`)
 
-
+    return config;
 }
 
 simpleNN.run = function(){
+    //interact with UI
     var config = simpleNN.getConfig();
     $("#modelArea").html("")
     $("#graphArea1").html("")
     $("#graphArea2").html("")
     $("#predictArea").html("")
 
-
-    var variables = database.getUiVariables();
-    simpleNN.variables = variables;
-
-    var maxVals = [];
-    for(var i = 0; i < variables.indVals.length; i++){
-        var max = Math.abs(database.summaryStats[variables.indVals[i]].max)
-        var min = Math.abs(database.summaryStats[variables.indVals[i]].min)
-        maxVals.push(Math.max(max,min));
-    }
-
-    var maxDep = Math.abs(database.summaryStats[variables.depVal].max);
-    var minDep = Math.abs(database.summaryStats[variables.depVal].min);
-    maxDep = Math.max(maxDep,minDep);
-
-
-    var data = [];
-    for(var i = 0; i < database.data.length; i++){
-        var row = database.data[i];
-        var xRow = [];
-        var yRow = [];
-        for(var j = 0; j < variables.indVals.length; j++){
-            xRow.push(row[variables.indVals[j]] / maxVals[j]);
-        }
-        yRow.push(row[variables.depVal] / maxDep);
-
-        var completeRow = {input:xRow,output:yRow};
-        data.push(completeRow);
-    }
+    //get data
+    var db = database.getInputOutputObjectDatabase(false,true)
+    simpleNN.variables = db.variables
+    var data = db.data;
+    var maxVals = db.maxVals;
+    var maxDep = db.maxDep;
+    var xRow = db.lastRow.input
 
     // split into training and testing datasets
     var shuffled = data.sort(() => 0.5 - Math.random());
+    var training_set_size = parseFloat($("#trainingSetSize").val()) / 100;
+    var training_data = shuffled.slice(0, Math.floor(shuffled.length * training_set_size));
+    var test_data = shuffled.slice(Math.floor(shuffled.length * training_set_size));
+    console.log(test_data)
 
-    // Get sub-array of first n elements after shuffled
-    var training_data = shuffled.slice(0, Math.floor(shuffled.length * 0.9));
-    var test_data = shuffled.slice(Math.floor(shuffled.length * 0.9));
-
-  
     // create a simple feed forward neural network with backpropagation
     simpleNN.model = new brain.NeuralNetwork(config);
   
+    // train the neural network
     simpleNN.model.train(training_data);
 
+    // test the neural network
     var avgError = 0;
     var maxError = 0;
     var errors = [];
@@ -144,27 +131,26 @@ simpleNN.run = function(){
         scatterData.push([output*maxDep,test_data[i].output*maxDep]);
         avgError += error;
         maxError = Math.max(maxError,error);
-        console.log(output * maxDep,test_data[i].output * maxDep,error * maxDep)
     }
     avgError /= test_data.length;
-    console.log("Average Error: " + avgError * maxDep);
-    console.log("Max Error: " + maxError * maxDep);
-    
-
     simpleNN.avgError = avgError * maxDep;
     simpleNN.maxError = maxError * maxDep;
 
+    // display the results
+    console.log("Average Error: " + avgError * maxDep);
+    console.log("Max Error: " + maxError * maxDep);
+    console.log(xRow)
     simpleNN.display(xRow)
-
+    console.log(errors,scatterData)
     graphs.drawHistogram(errors,"Prediction Errors","Error","Prevalence",'graphArea1')
     graphs.drawScatterplot(scatterData,"Predictions","Prediction","Actual",'graphArea2')
+
     closeModal();
 }
 
 
 simpleNN.display = function(startValues){
     var variables = simpleNN.variables;
-    var model = simpleNN.model;
 
     var maxVals = [];
     for(var i = 0; i < variables.indVals.length; i++){
@@ -185,29 +171,7 @@ simpleNN.display = function(startValues){
     </div>`
     $("#modelArea").html(html)
 
-    var html = `
-        <h3>Predict With Model</h3>
-        <div class="row">
-    `
-    for(var i=0;i<variables.indVals.length;i++){
-        html += `
-            <div class="col">
-                <div class="form-group">
-                    <label>${variables.indVals[i]}</label>
-                    <input type="number" class="form-control" id="${i}-predictVal" value="${startValues[i] * maxVals[i]}">
-                </div>
-            </div>
-        `;
-
-        if(i > 0 && (i+1)%3 == 0 || i == variables.indVals.length-1){
-            html += "</div>"//close row
-        }
-        if((i+1)%3 == 0 && i < variables.indVals.length-1 && i > 0){
-            html += "<div class='row'>"//start new row
-        }
-    }
-
-
+    html = database.drawPredictUI(variables,startValues,maxVals)
 
     html += `
         <button class="btn btn-primary mt-3 mb-3" onclick="simpleNN.predict()">Predict</button>
@@ -234,12 +198,9 @@ simpleNN.predict = function(){
     var minDep = Math.abs(database.summaryStats[variables.depVal].min);
     maxDep = Math.max(maxDep,minDep);
 
-    var values = [];
-    for(var i=0;i<simpleNN.variables.indVals.length;i++){
-
-        values.push(parseFloat($("#"+i+"-predictVal").val()) / maxVals[i]);
-    }   
+    var values = database.getValuesFromPredictUI(simpleNN.variables,maxVals)
     var prediction = simpleNN.model.run(values);
+    console.log(values,maxVals,prediction,maxDep)
     prediction = prediction[0] * maxDep;
     $("#predictionOutputArea").html(prediction.toFixed(2));
 }

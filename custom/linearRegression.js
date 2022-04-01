@@ -25,26 +25,32 @@ linearRegression.run = function(){
     $("#graphArea2").html("")
     $("#predictArea").html("")
     
-    var variables = database.getUiVariables();
-    linearRegression.variables = variables;
+
+    //get data
+    var db = database.getInputOutputObjectDatabase(true)
+    linearRegression.variables = db.variables
+    variables = db.variables
+    var data = db.data;
+    var maxVals = db.maxVals;
+    var maxDep = db.maxDep;
+    var xRow = db.lastRow.input
+    console.log(data)
+    var linRegData = [];
 
     var x = [];
     var y = [];
-    for(var i = 0; i < database.data.length; i++){
-        var row = database.data[i];
+    for(var i = 0; i < data.length; i++){
         var xRow = [];
-        var yRow = [];
-        for(var j = 0; j < variables.indVals.length; j++){
-            xRow.push(row[variables.indVals[j]]);
+        for(var ii=0;ii<data[i].input.length;ii++){
+            xRow.push(data[i].input[ii])
         }
-        yRow.push(row[variables.depVal]);
-
-        x.push(xRow);
-        y.push(yRow);
+        x.push(xRow)
+        y.push(data[i].output)
     }
 
     var intercept = $("#intercept").is(":checked");
 
+    console.log(x,y)
     linearRegression.model = new ML.MultivariateLinearRegression(x, y, {intercept:intercept});
     linearRegression.display(xRow)
 }
@@ -82,8 +88,24 @@ linearRegression.display = function(startValues){
             </tr>
         `;
     } 
+    var index = variables.indVals.length-1;
+    for(var i=0;i<variables.catIndVals.length;i++){
+        var uniques = database.summaryStats[variables.catIndVals[i]].uniques
+        for(var ii=0;ii<uniques.length-1;ii++){
+            index++
+            html += `
+                <tr>
+                    <td>${uniques[ii]}</td>
+                    <td>${model.weights[index][0].toFixed(2)}</td>
+                    <td>${model.stdErrors[index].toFixed(2)}</td>
+                    <td>${model.tStats[index].toFixed(2)}</td>
+                    <td>${model.pValues[index].toFixed(2)}</td>
+                </tr>
+            `;
+        }
+    }
     if(model.intercept){
-        var index = variables.indVals.length;
+        index++;
         html += `
             <tr>
                 <td>Intercept</td>
@@ -99,29 +121,8 @@ linearRegression.display = function(startValues){
 
     $("#modelArea").html(html)
 
-    var html = `
-        <h3>Predict With Model</h3>
-        <div class="row">
-    `
-    for(var i=0;i<variables.indVals.length;i++){
-        html += `
-            <div class="col">
-                <div class="form-group">
-                    <label>${variables.indVals[i]}</label>
-                    <input type="number" class="form-control" id="${i}-predictVal" value="${startValues[i]}">
-                </div>
-            </div>
-        `;
-
-        if(i > 0 && (i+1)%3 == 0 || i == variables.indVals.length-1){
-            html += "</div>"//close row
-        }
-        if((i+1)%3 == 0 && i < variables.indVals.length-1 && i > 0){
-            html += "<div class='row'>"//start new row
-        }
-    }
-
-
+    console.log(variables,startValues)
+    html = database.drawPredictUI(variables,startValues)
 
     html += `
         <button class="btn btn-primary" onclick="linearRegression.predict()">Predict</button>
@@ -145,10 +146,8 @@ linearRegression.download = function(){
 }
 
 linearRegression.predict = function(){
-    var values = [];
-    for(var i=0;i<linearRegression.variables.indVals.length;i++){
-        values.push(parseFloat($("#"+i+"-predictVal").val()));
-    }   
+    var values = database.getValuesFromPredictUI(linearRegression.variables,false,true)
+    console.log(values)
     var prediction = linearRegression.model.predict(values);
     console.log(prediction,values)
     $("#predictionOutputArea").html(prediction[0].toFixed(2));

@@ -36,6 +36,17 @@ ingest.getSummaryStats = function(data,types){
             var stats = {};
             stats.first = data[0][type];
             stats.last = data[data.length-1][type];
+            //get unique values
+            var uniques = {}
+            for(var i = 0; i < data.length; i++){
+                uniques[data[i][type]] = true;
+            }
+            stats.uniques = [];
+            for(var unique in uniques){
+                stats.uniques.push(unique);
+            }
+            stats.numUniques = stats.uniques.length;
+
             summaryStats[type] = stats;
         }
         else{
